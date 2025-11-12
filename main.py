@@ -1,8 +1,14 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
 
-app = FastAPI()
+from database import create_document, get_documents, db
+from schemas import Program, Event, Inquiry
+
+app = FastAPI(title="SBJain College API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,13 +18,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def read_root():
-    return {"message": "Hello from FastAPI Backend!"}
+    return {"message": "SBJain College Backend is running"}
+
 
 @app.get("/api/hello")
 def hello():
-    return {"message": "Hello from the backend API!"}
+    return {"message": "Welcome to SBJain College API"}
+
 
 @app.get("/test")
 def test_database():
@@ -31,38 +40,109 @@ def test_database():
         "connection_status": "Not Connected",
         "collections": []
     }
-    
     try:
-        # Try to import database module
-        from database import db
-        
         if db is not None:
             response["database"] = "✅ Available"
             response["database_url"] = "✅ Configured"
             response["database_name"] = db.name if hasattr(db, 'name') else "✅ Connected"
             response["connection_status"] = "Connected"
-            
-            # Try to list collections to verify connectivity
             try:
                 collections = db.list_collection_names()
-                response["collections"] = collections[:10]  # Show first 10 collections
+                response["collections"] = collections[:10]
                 response["database"] = "✅ Connected & Working"
             except Exception as e:
                 response["database"] = f"⚠️  Connected but Error: {str(e)[:50]}"
         else:
             response["database"] = "⚠️  Available but not initialized"
-            
-    except ImportError:
-        response["database"] = "❌ Database module not found (run enable-database first)"
     except Exception as e:
         response["database"] = f"❌ Error: {str(e)[:50]}"
-    
-    # Check environment variables
-    import os
+
     response["database_url"] = "✅ Set" if os.getenv("DATABASE_URL") else "❌ Not Set"
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
-    
     return response
+
+
+# -------------------------------
+# Programs Endpoints
+# -------------------------------
+class ProgramOut(Program):
+    id: Optional[str] = None
+
+
+@app.get("/api/programs", response_model=List[ProgramOut])
+def list_programs():
+    try:
+        docs = get_documents("program", {})
+        # Convert ObjectId to str and map fields
+        result = []
+        for d in docs:
+            d["id"] = str(d.get("_id"))
+            d.pop("_id", None)
+            result.append(d)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/programs", status_code=201)
+def create_program(program: Program):
+    try:
+        new_id = create_document("program", program)
+        return {"id": new_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+# Events Endpoints
+# -------------------------------
+class EventOut(Event):
+    id: Optional[str] = None
+
+
+@app.get("/api/events", response_model=List[EventOut])
+def list_events():
+    try:
+        docs = get_documents("event", {})
+        result = []
+        for d in docs:
+            d["id"] = str(d.get("_id"))
+            d.pop("_id", None)
+            # Ensure date is isoformat if it came as datetime
+            if isinstance(d.get("date"), datetime):
+                d["date"] = d["date"].isoformat()
+            return_list_item = d
+            result.append(return_list_item)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/events", status_code=201)
+def create_event(event: Event):
+    try:
+        new_id = create_document("event", event)
+        return {"id": new_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------
+# Inquiry Endpoint
+# -------------------------------
+class InquiryResponse(BaseModel):
+    success: bool
+    message: str
+    id: Optional[str] = None
+
+
+@app.post("/api/inquiries", response_model=InquiryResponse)
+def submit_inquiry(inquiry: Inquiry):
+    try:
+        new_id = create_document("inquiry", inquiry)
+        return InquiryResponse(success=True, message="Thanks! We received your inquiry.", id=new_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

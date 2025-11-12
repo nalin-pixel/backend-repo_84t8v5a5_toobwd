@@ -11,8 +11,9 @@ Model name is converted to lowercase for the collection name:
 - BlogPost -> "blogs" collection
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
+from datetime import datetime
 
 # Example schemas (replace with your own):
 
@@ -41,8 +42,38 @@ class Product(BaseModel):
 # Add your own schemas here:
 # --------------------------------------------------
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class Program(BaseModel):
+    """
+    Academic programs offered by the college
+    Collection name: "program"
+    """
+    name: str = Field(..., description="Program name, e.g., B.E. Computer Science")
+    degree: str = Field(..., description="Degree type, e.g., B.E., M.Tech, MBA")
+    department: str = Field(..., description="Department offering the program")
+    duration: str = Field(..., description="Duration, e.g., 4 Years")
+    description: str = Field(..., description="Short description")
+    eligibility: Optional[str] = Field(None, description="Eligibility criteria")
+    fees: Optional[str] = Field(None, description="Approximate fees or range")
+    brochure_url: Optional[str] = Field(None, description="Link to brochure or syllabus")
+
+class Event(BaseModel):
+    """
+    College events and announcements
+    Collection name: "event"
+    """
+    title: str
+    date: datetime
+    location: str
+    description: str
+    image_url: Optional[str] = None
+
+class Inquiry(BaseModel):
+    """
+    Admission/contact inquiries from the website
+    Collection name: "inquiry"
+    """
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    message: str
+    source: Optional[str] = Field("website", description="Where the inquiry originated")
